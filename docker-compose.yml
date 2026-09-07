@@ -1,0 +1,52 @@
+services:
+  api:
+    build:
+      context: .
+    container_name: zhishu-ai-api
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      LOG_LEVEL: info
+      USE_MOCK_DB: "true"
+      VECTOR_PROVIDER: mock
+      DEFAULT_USER_ID: 1
+      DEFAULT_USER_ROLE: admin
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: zhishu
+      MYSQL_PASSWORD: zhishu_password
+      MYSQL_DATABASE: zhishu_ai
+    ports:
+      - "3001:3001"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3001/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.4
+    container_name: zhishu-ai-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: zhishu_ai
+      MYSQL_USER: zhishu
+      MYSQL_PASSWORD: zhishu_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - zhishu_mysql_data:/var/lib/mysql
+      - ./migrations/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot_password --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  zhishu_mysql_data:

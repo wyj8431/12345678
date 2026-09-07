@@ -1,0 +1,11 @@
+node_modules
+dist
+npm-debug.log*
+.env
+.env.*
+server*.log
+.git
+.github
+coverage
+.DS_Store
+docs/postman

@@ -1,0 +1,5182 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Zhishu AI API",
+    "version": "0.1.0",
+    "description": "OpenAPI contract for the Zhishu AI knowledge-base QA backend. The chat stream endpoint returns Server-Sent Events."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:3001",
+      "description": "Local mock-first server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Health"
+    },
+    {
+      "name": "Auth"
+    },
+    {
+      "name": "Chat"
+    },
+    {
+      "name": "Files"
+    },
+    {
+      "name": "Ingest"
+    },
+    {
+      "name": "Feedback"
+    },
+    {
+      "name": "Admin"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Health check",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Readiness check",
+        "description": "Checks app readiness. In MySQL mode this performs a lightweight SELECT 1 dependency check.",
+        "responses": {
+          "200": {
+            "description": "Service is ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service is not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Login and receive a JWT access token",
+        "description": "Authenticates a user and returns a Bearer token. Mock mode accepts the configured mock admin credentials.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthLoginRequest"
+              },
+              "examples": {
+                "mockAdmin": {
+                  "summary": "Mock admin login",
+                  "value": {
+                    "username": "admin",
+                    "password": "admin123456"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login succeeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthLoginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Get current authenticated user",
+        "description": "Returns the current user's safe identity fields for restoring admin/frontend session state.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthMeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Logout current session",
+        "description": "Records an auth_logout audit event. JWT logout is stateless; clients should discard the access token locally.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Logout acknowledged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthLogoutResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/chat/stream": {
+      "post": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Stream a chat answer with safety, agent decision, RAG retrieval, and generation events",
+        "description": "Returns Server-Sent Events. Each event is emitted as `data: {json}\\n\\n`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatStreamRequest"
+              },
+              "examples": {
+                "globalRag": {
+                  "summary": "Global RAG",
+                  "value": {
+                    "content": "智枢AI是什么？",
+                    "inputType": "text"
+                  }
+                },
+                "scopedRag": {
+                  "summary": "Scoped RAG",
+                  "value": {
+                    "content": "智枢AI是什么？",
+                    "inputType": "text",
+                    "fileIds": [
+                      1
+                    ]
+                  }
+                },
+                "temporaryContext": {
+                  "summary": "Temporary context",
+                  "value": {
+                    "content": "请总结这段内容",
+                    "inputType": "text",
+                    "temporaryContext": "智枢AI支持把临时OCR内容用于本轮问答。"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SSE stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "examples": [
+                    "data: {\"type\":\"progress\",\"stage\":\"safety\"}\\n\\ndata: {\"type\":\"start\",\"conversationId\":1,\"messageId\":2}\\n\\ndata: {\"type\":\"agent_decision\",\"data\":{\"mode\":\"global_rag\",\"shouldRetrieve\":true,\"reason\":\"default_knowledge_base_search\"}}\\n\\ndata: {\"type\":\"done\",\"usage\":{\"latencyMs\":900,\"provider\":\"mock-rag\"}}\\n\\n"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/init": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Initialize an upload",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileInitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Upload token and chunk size",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileInitResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/files/complete": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Complete upload and create an ingest task",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileCompleteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Created file and ingest task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileCompleteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/files": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "List current user's files",
+        "responses": {
+          "200": {
+            "description": "File list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/{id}": {
+      "delete": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Delete a file and its vector chunks",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delete result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteFileResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/ingest-tasks/{id}": {
+      "get": {
+        "tags": [
+          "Ingest"
+        ],
+        "summary": "Get an ingest task",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ingest task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestTaskResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/feedback": {
+      "post": {
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "Create answer feedback",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Created feedback",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/dashboard/metrics": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get dashboard metrics",
+        "responses": {
+          "200": {
+            "description": "Dashboard metrics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardMetricsResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/dashboard/breakdowns": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get dashboard breakdowns",
+        "description": "Returns recent dashboard distributions for admin chart widgets. days supports 1-90 and defaults to 7.",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90,
+              "default": 7
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dashboard breakdowns",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardBreakdownsResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/ingest-tasks": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "List ingest tasks for admin",
+        "responses": {
+          "200": {
+            "description": "Ingest task list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestTaskListResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "createdFrom",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "createdTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/IngestStatus"
+            }
+          },
+          {
+            "name": "taskType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "file",
+                "image",
+                "audio"
+              ]
+            }
+          },
+          {
+            "name": "fileId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      }
+    },
+    "/api/admin/model-call-logs": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "List model call logs",
+        "responses": {
+          "200": {
+            "description": "Model call log list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelCallLogListResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "createdFrom",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "createdTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "provider",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 50
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "chat",
+                "rewrite_query",
+                "summarize",
+                "embedding",
+                "safety"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "success",
+                "failed",
+                "timeout",
+                "aborted"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "/api/admin/rag-query-logs": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "List RAG query logs",
+        "responses": {
+          "200": {
+            "description": "RAG query log list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagQueryLogListResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "createdFrom",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "createdTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "usedFallback",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ]
+      }
+    },
+    "/api/admin/feedback-stats": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get feedback statistics",
+        "responses": {
+          "200": {
+            "description": "Feedback stats",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackStatsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/audit-logs": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "List audit logs",
+        "responses": {
+          "200": {
+            "description": "Audit log list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditLogListResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "createdFrom",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "createdTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            }
+          },
+          {
+            "name": "riskLevel",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "success",
+                "blocked",
+                "failed"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "/api/admin/security/overview": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get security overview",
+        "description": "Returns safe audit/security aggregates for admin widgets. Raw prompts, full message content, retrieved context, embeddings, storage paths, passwords, tokens, Authorization headers, stack traces, and internal payloads are excluded.",
+        "responses": {
+          "200": {
+            "description": "Security overview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityOverviewResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90,
+              "default": 7
+            }
+          }
+        ]
+      }
+    },
+    "/api/admin/audit-logs/{id}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get audit log detail",
+        "description": "Returns one safety or operational audit log. Raw prompts, retrieved context, stack traces, secrets, and internal payloads are not returned.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit log detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditLogDetailResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/feedback": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "List feedback details",
+        "description": "Returns paginated feedback details with messagePreview for admin review.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "createdFrom",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "createdTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "rating",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "up",
+                "down"
+              ]
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "answer_irrelevant",
+                "wrong_citation",
+                "incomplete",
+                "hallucination",
+                "other"
+              ]
+            }
+          },
+          {
+            "name": "messageId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feedback detail list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackListResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/feedback/{id}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get feedback detail",
+        "description": "Returns one feedback record with the related message preview and conversation summary. Full raw answer text and RAG context are not returned.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feedback detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackDetailResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/messages": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "List chat messages",
+        "description": "Returns paginated chat messages with contentPreview for admin troubleshooting.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "createdFrom",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "createdTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "user",
+                "assistant"
+              ]
+            }
+          },
+          {
+            "name": "conversationId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Message list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMessageListResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/messages/{id}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get message detail",
+        "description": "Returns one message preview with related conversation summary, RAG query logs, feedback records, and safe model call summaries. Full raw message text, prompts, provider payloads, and retrieved context are not returned.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Message detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMessageDetailResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/conversations": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "List conversations",
+        "description": "Returns paginated conversation summaries with message count and lastMessagePreview.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "createdFrom",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "createdTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "archived",
+                "deleted"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminConversationListResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/conversations/{id}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get conversation detail",
+        "description": "Returns one conversation summary and up to 50 recent message previews. Full raw message content is intentionally not returned.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminConversationDetailResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/files": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "List knowledge files",
+        "description": "Returns paginated knowledge files with status, ingest mode, and chunkCount for admin review.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "createdFrom",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "createdTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "fileType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pdf",
+                "word",
+                "excel",
+                "txt",
+                "image",
+                "audio"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "uploaded",
+                "processing",
+                "ready",
+                "failed",
+                "deleted"
+              ]
+            }
+          },
+          {
+            "name": "ingestMode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "temporary",
+                "permanent"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Knowledge file list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminFileListResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/files/{id}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get knowledge file detail",
+        "description": "Returns one knowledge file and its related ingest tasks. Internal storage paths are intentionally excluded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Knowledge file detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminFileDetailResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/ingest-tasks/{id}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get ingest task detail",
+        "description": "Returns one ingest task and its related knowledge file summary.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ingest task detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminIngestTaskDetailResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/rag-query-logs/{id}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get RAG query log detail",
+        "description": "Returns one RAG retrieval log and the related user message preview. Raw vector embeddings are not returned.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "RAG query log detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RagQueryLogDetailResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/model-call-logs/{id}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get model call log detail",
+        "description": "Returns one model call log and the related conversation summary. Raw prompt and context text are not returned.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Model call log detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelCallLogDetailResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/users/{id}/activity-summary": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get admin user activity summary",
+        "description": "Returns aggregate user activity metrics and recent operational records for an admin user detail page. Raw prompts, full messages, retrieved context, embeddings, storage paths, stack traces, and secrets are intentionally excluded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User activity summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserActivitySummaryResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/users/{id}/security-events": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get admin user security events",
+        "description": "Returns one user's safe audit/security timeline with aggregate counts, distributions, and paginated audit previews. Raw prompts, full messages, retrieved context, embeddings, storage paths, passwords, tokens, Authorization headers, stack traces, and internal payloads are excluded.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365,
+              "default": 30
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            }
+          },
+          {
+            "name": "riskLevel",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "success",
+                "blocked",
+                "failed"
+              ]
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User security events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserSecurityEventsResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "List users for admin",
+        "description": "Returns paginated users for the admin user table. Credential fields such as password_hash are never returned.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "user",
+                "admin"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "disabled"
+              ]
+            }
+          },
+          {
+            "name": "createdFrom",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "createdTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserListResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/users/{id}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get admin user detail",
+        "description": "Returns one safe user profile for admin detail pages. Password hashes are never returned.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserDetailResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/users/{id}/status": {
+      "patch": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Update admin user status",
+        "description": "Enables or disables another user account. Requires admin:users:read and admin:users:write. The current admin user cannot disable their own account.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUserStatusUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated user status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserStatusUpdateResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/admin/dashboard/trends": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get dashboard trends",
+        "description": "Returns daily dashboard trend points for admin charts. days supports 1-90 and defaults to 7.",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90,
+              "default": 7
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dashboard trends",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardTrendsResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "responses": {
+      "ErrorResponse": {
+        "description": "Error response",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "SuccessEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {}
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "HealthResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "const": "ok"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ReadinessResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "status",
+                  "checks"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "ready",
+                      "not_ready"
+                    ]
+                  },
+                  "checks": {
+                    "type": "object",
+                    "required": [
+                      "app",
+                      "mysql",
+                      "vector"
+                    ],
+                    "properties": {
+                      "app": {
+                        "const": "ok"
+                      },
+                      "mysql": {
+                        "type": "string",
+                        "enum": [
+                          "ok",
+                          "skipped",
+                          "failed"
+                        ]
+                      },
+                      "vector": {
+                        "type": "string",
+                        "enum": [
+                          "ok",
+                          "skipped"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AuthLoginRequest": {
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "format": "password"
+          }
+        }
+      },
+      "AuthLoginResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "accessToken",
+                  "tokenType",
+                  "expiresAt",
+                  "user"
+                ],
+                "properties": {
+                  "accessToken": {
+                    "type": "string",
+                    "description": "JWT access token. Do not log or expose this value."
+                  },
+                  "tokenType": {
+                    "const": "Bearer"
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "user": {
+                    "$ref": "#/components/schemas/AuthUser"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AuthMeResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "user"
+                ],
+                "properties": {
+                  "user": {
+                    "$ref": "#/components/schemas/AuthUser"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AuthLogoutResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "loggedOut"
+                ],
+                "properties": {
+                  "loggedOut": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AuthUser": {
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "role",
+          "status",
+          "permissions"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "username": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "admin"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled"
+            ]
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuthPermission"
+            }
+          }
+        }
+      },
+      "AuthPermission": {
+        "type": "string",
+        "enum": [
+          "auth:read",
+          "chat:write",
+          "files:write",
+          "feedback:write",
+          "admin:read",
+          "admin:dashboard:read",
+          "admin:users:read",
+          "admin:users:write",
+          "admin:ingest-tasks:read",
+          "admin:model-logs:read",
+          "admin:rag-logs:read",
+          "admin:feedback:read",
+          "admin:messages:read",
+          "admin:conversations:read",
+          "admin:files:read",
+          "admin:audit-logs:read"
+        ]
+      },
+      "ChatStreamRequest": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "conversationId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "inputType": {
+            "$ref": "#/components/schemas/InputType"
+          },
+          "fileIds": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "temporaryContext": {
+            "type": "string",
+            "maxLength": 20000
+          }
+        }
+      },
+      "InputType": {
+        "type": "string",
+        "enum": [
+          "text",
+          "audio",
+          "file",
+          "image"
+        ],
+        "default": "text"
+      },
+      "FileType": {
+        "type": "string",
+        "enum": [
+          "pdf",
+          "word",
+          "excel",
+          "txt",
+          "image",
+          "audio"
+        ]
+      },
+      "IngestMode": {
+        "type": "string",
+        "enum": [
+          "temporary",
+          "permanent"
+        ],
+        "default": "permanent"
+      },
+      "FileInitRequest": {
+        "type": "object",
+        "required": [
+          "fileName",
+          "fileSize",
+          "fileType",
+          "checksum"
+        ],
+        "properties": {
+          "fileName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "fileSize": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "fileType": {
+            "$ref": "#/components/schemas/FileType"
+          },
+          "checksum": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128
+          },
+          "ingestMode": {
+            "$ref": "#/components/schemas/IngestMode"
+          }
+        }
+      },
+      "FileCompleteRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FileInitRequest"
+          },
+          {
+            "type": "object",
+            "required": [
+              "uploadId"
+            ],
+            "properties": {
+              "uploadId": {
+                "type": "string",
+                "minLength": 8
+              }
+            }
+          }
+        ]
+      },
+      "FileInitResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "uploadId",
+                  "chunkSize"
+                ],
+                "properties": {
+                  "uploadId": {
+                    "type": "string"
+                  },
+                  "chunkSize": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "FileCompleteResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "fileId",
+                  "taskId",
+                  "status"
+                ],
+                "properties": {
+                  "fileId": {
+                    "type": "integer"
+                  },
+                  "taskId": {
+                    "type": "integer"
+                  },
+                  "status": {
+                    "const": "processing"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "KnowledgeFile": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "fileName",
+          "fileSize",
+          "fileType",
+          "checksum",
+          "ingestMode",
+          "status",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "userId": {
+            "type": "integer"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "fileSize": {
+            "type": "integer"
+          },
+          "fileType": {
+            "$ref": "#/components/schemas/FileType"
+          },
+          "checksum": {
+            "type": "string"
+          },
+          "ingestMode": {
+            "$ref": "#/components/schemas/IngestMode"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FileStatus"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FileStatus": {
+        "type": "string",
+        "enum": [
+          "uploaded",
+          "processing",
+          "ready",
+          "failed",
+          "deleted"
+        ]
+      },
+      "FileListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/KnowledgeFile"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "DeleteFileResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "deleted"
+                ],
+                "properties": {
+                  "deleted": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "IngestTask": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "fileId",
+          "taskType",
+          "status",
+          "progress",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "userId": {
+            "type": "integer"
+          },
+          "fileId": {
+            "type": "integer"
+          },
+          "taskType": {
+            "type": "string",
+            "enum": [
+              "file",
+              "image",
+              "audio",
+              "delete_chroma_vectors"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/IngestStatus"
+          },
+          "progress": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "IngestStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "parsing",
+          "cleaning",
+          "chunking",
+          "embedding",
+          "upserting",
+          "processing",
+          "completed",
+          "failed"
+        ]
+      },
+      "IngestTaskResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/IngestTask"
+              }
+            }
+          }
+        ]
+      },
+      "IngestTaskListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "items",
+                  "total",
+                  "page",
+                  "pageSize",
+                  "totalPages"
+                ],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/IngestTask"
+                    }
+                  },
+                  "total": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "page": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "pageSize": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "totalPages": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "FeedbackCreateRequest": {
+        "type": "object",
+        "required": [
+          "messageId",
+          "rating"
+        ],
+        "properties": {
+          "messageId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "rating": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "answer_irrelevant",
+              "wrong_citation",
+              "incomplete",
+              "hallucination",
+              "other"
+            ]
+          },
+          "comment": {
+            "type": "string",
+            "maxLength": 512
+          }
+        }
+      },
+      "Feedback": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "messageId",
+          "rating",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "userId": {
+            "type": "integer"
+          },
+          "messageId": {
+            "type": "integer"
+          },
+          "rating": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "answer_irrelevant",
+              "wrong_citation",
+              "incomplete",
+              "hallucination",
+              "other"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FeedbackResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/Feedback"
+              }
+            }
+          }
+        ]
+      },
+      "FeedbackStatsResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "total",
+                  "up",
+                  "down"
+                ],
+                "properties": {
+                  "total": {
+                    "type": "integer"
+                  },
+                  "up": {
+                    "type": "integer"
+                  },
+                  "down": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "DashboardMetricsResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "chatCount",
+                  "modelCallCount",
+                  "ragHitRate",
+                  "fallbackRate",
+                  "ingestSuccessRate",
+                  "safetyBlockCount",
+                  "feedbackStats"
+                ],
+                "properties": {
+                  "chatCount": {
+                    "type": "integer"
+                  },
+                  "modelCallCount": {
+                    "type": "integer"
+                  },
+                  "ragHitRate": {
+                    "type": "number"
+                  },
+                  "fallbackRate": {
+                    "type": "number"
+                  },
+                  "ingestSuccessRate": {
+                    "type": "number"
+                  },
+                  "safetyBlockCount": {
+                    "type": "integer"
+                  },
+                  "feedbackStats": {
+                    "type": "object",
+                    "properties": {
+                      "up": {
+                        "type": "integer"
+                      },
+                      "down": {
+                        "type": "integer"
+                      },
+                      "downReasons": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "DashboardBreakdownsResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "days",
+                  "filesByStatus",
+                  "ingestTasksByStatus",
+                  "modelCallsByStatus",
+                  "modelCallsByPurpose",
+                  "ragFallback",
+                  "feedbackByRating",
+                  "feedbackDownReasons",
+                  "auditByRiskLevel",
+                  "auditByStatus"
+                ],
+                "properties": {
+                  "days": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 90
+                  },
+                  "filesByStatus": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer"
+                    }
+                  },
+                  "ingestTasksByStatus": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer"
+                    }
+                  },
+                  "modelCallsByStatus": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer"
+                    }
+                  },
+                  "modelCallsByPurpose": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer"
+                    }
+                  },
+                  "ragFallback": {
+                    "type": "object",
+                    "required": [
+                      "fallback",
+                      "nonFallback"
+                    ],
+                    "properties": {
+                      "fallback": {
+                        "type": "integer"
+                      },
+                      "nonFallback": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "feedbackByRating": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer"
+                    }
+                  },
+                  "feedbackDownReasons": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer"
+                    }
+                  },
+                  "auditByRiskLevel": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer"
+                    }
+                  },
+                  "auditByStatus": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ModelCallLog": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "provider",
+          "purpose",
+          "status",
+          "latencyMs",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "userId": {
+            "type": "integer"
+          },
+          "conversationId": {
+            "type": "integer"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "chat",
+              "rewrite_query",
+              "summarize",
+              "embedding",
+              "safety"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "failed",
+              "timeout",
+              "aborted"
+            ]
+          },
+          "latencyMs": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tokenInput": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tokenOutput": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "errorCode": {
+            "type": "string"
+          }
+        }
+      },
+      "ModelCallLogListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "items",
+                  "total",
+                  "page",
+                  "pageSize",
+                  "totalPages"
+                ],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ModelCallLog"
+                    }
+                  },
+                  "total": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "page": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "pageSize": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "totalPages": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "RagQueryLog": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "query",
+          "hitCount",
+          "usedFallback",
+          "latencyMs",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "userId": {
+            "type": "integer"
+          },
+          "conversationId": {
+            "type": "integer"
+          },
+          "messageId": {
+            "type": "integer"
+          },
+          "query": {
+            "type": "string"
+          },
+          "hitCount": {
+            "type": "integer"
+          },
+          "maxScore": {
+            "type": "number"
+          },
+          "usedFallback": {
+            "type": "boolean"
+          },
+          "latencyMs": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "rewrittenQuery": {
+            "type": "string"
+          },
+          "topK": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "thresholdValue": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      },
+      "RagQueryLogListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "items",
+                  "total",
+                  "page",
+                  "pageSize",
+                  "totalPages"
+                ],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/RagQueryLog"
+                    }
+                  },
+                  "total": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "page": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "pageSize": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "totalPages": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AuditLog": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "action",
+          "riskLevel",
+          "status",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "userId": {
+            "type": "integer"
+          },
+          "action": {
+            "type": "string"
+          },
+          "targetType": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "integer"
+          },
+          "riskLevel": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "blocked",
+              "failed"
+            ]
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "ip": {
+            "type": "string"
+          },
+          "userAgent": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AuditLogListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "items",
+                  "total",
+                  "page",
+                  "pageSize",
+                  "totalPages"
+                ],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AuditLog"
+                    }
+                  },
+                  "total": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "page": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "pageSize": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "totalPages": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AuditActionSummary": {
+        "type": "object",
+        "required": [
+          "action",
+          "count",
+          "failedCount",
+          "blockedCount"
+        ],
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failedCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "blockedCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SecurityOverviewResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "days",
+                  "totalAuditCount",
+                  "successCount",
+                  "failedCount",
+                  "blockedCount",
+                  "highRiskCount",
+                  "authFailureCount",
+                  "permissionDeniedCount",
+                  "safetyBlockCount",
+                  "uniqueUserCount",
+                  "auditByRiskLevel",
+                  "auditByStatus",
+                  "topActions",
+                  "recentHighRiskLogs"
+                ],
+                "properties": {
+                  "days": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 90
+                  },
+                  "totalAuditCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "successCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "failedCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "blockedCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "highRiskCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "authFailureCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "permissionDeniedCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "safetyBlockCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "uniqueUserCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "auditByRiskLevel": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "auditByStatus": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "topActions": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AuditActionSummary"
+                    }
+                  },
+                  "recentHighRiskLogs": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AuditLog"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AuditLogDetailResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "log"
+                ],
+                "properties": {
+                  "log": {
+                    "$ref": "#/components/schemas/AuditLog"
+                  },
+                  "user": {
+                    "$ref": "#/components/schemas/AdminUser"
+                  },
+                  "targetUser": {
+                    "$ref": "#/components/schemas/AdminUser"
+                  },
+                  "targetMessage": {
+                    "$ref": "#/components/schemas/AdminMessage"
+                  },
+                  "targetFile": {
+                    "$ref": "#/components/schemas/AdminFile"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminFeedback": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "messageId",
+          "rating",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "userId": {
+            "type": "integer"
+          },
+          "messageId": {
+            "type": "integer"
+          },
+          "conversationId": {
+            "type": "integer"
+          },
+          "rating": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "answer_irrelevant",
+              "wrong_citation",
+              "incomplete",
+              "hallucination",
+              "other"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "messagePreview": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FeedbackListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "items",
+                  "total",
+                  "page",
+                  "pageSize",
+                  "totalPages"
+                ],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AdminFeedback"
+                    }
+                  },
+                  "total": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "page": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "pageSize": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "totalPages": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "FeedbackDetailResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "feedback",
+                  "ragLogs",
+                  "modelCalls"
+                ],
+                "properties": {
+                  "feedback": {
+                    "$ref": "#/components/schemas/AdminFeedback"
+                  },
+                  "message": {
+                    "$ref": "#/components/schemas/AdminMessage"
+                  },
+                  "conversation": {
+                    "$ref": "#/components/schemas/AdminConversation"
+                  },
+                  "ragLogs": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/RagQueryLog"
+                    }
+                  },
+                  "modelCalls": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ModelCallLog"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminMessage": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "conversationId",
+          "role",
+          "contentPreview",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "userId": {
+            "type": "integer"
+          },
+          "conversationId": {
+            "type": "integer"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ]
+          },
+          "contentPreview": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminMessageListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "items",
+                  "total",
+                  "page",
+                  "pageSize",
+                  "totalPages"
+                ],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AdminMessage"
+                    }
+                  },
+                  "total": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "page": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "pageSize": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "totalPages": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminMessageDetailResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "message",
+                  "ragLogs",
+                  "feedback",
+                  "modelCalls"
+                ],
+                "properties": {
+                  "message": {
+                    "$ref": "#/components/schemas/AdminMessage"
+                  },
+                  "conversation": {
+                    "$ref": "#/components/schemas/AdminConversation"
+                  },
+                  "ragLogs": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/RagQueryLog"
+                    }
+                  },
+                  "feedback": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AdminFeedback"
+                    }
+                  },
+                  "modelCalls": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ModelCallLog"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminConversation": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "status",
+          "messageCount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "userId": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived",
+              "deleted"
+            ]
+          },
+          "messageCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lastMessageAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastMessagePreview": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminConversationListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "items",
+                  "total",
+                  "page",
+                  "pageSize",
+                  "totalPages"
+                ],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AdminConversation"
+                    }
+                  },
+                  "total": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "page": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "pageSize": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "totalPages": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminConversationDetailResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "conversation",
+                  "messages",
+                  "summary"
+                ],
+                "properties": {
+                  "conversation": {
+                    "$ref": "#/components/schemas/AdminConversation"
+                  },
+                  "messages": {
+                    "type": "array",
+                    "maxItems": 50,
+                    "items": {
+                      "$ref": "#/components/schemas/AdminMessage"
+                    }
+                  },
+                  "summary": {
+                    "type": "object",
+                    "required": [
+                      "userMessageCount",
+                      "assistantMessageCount",
+                      "ragQueryCount",
+                      "fallbackCount",
+                      "feedbackCount",
+                      "downFeedbackCount",
+                      "safetyBlockCount",
+                      "modelCallCount"
+                    ],
+                    "properties": {
+                      "userMessageCount": {
+                        "type": "integer"
+                      },
+                      "assistantMessageCount": {
+                        "type": "integer"
+                      },
+                      "ragQueryCount": {
+                        "type": "integer"
+                      },
+                      "fallbackCount": {
+                        "type": "integer"
+                      },
+                      "feedbackCount": {
+                        "type": "integer"
+                      },
+                      "downFeedbackCount": {
+                        "type": "integer"
+                      },
+                      "safetyBlockCount": {
+                        "type": "integer"
+                      },
+                      "modelCallCount": {
+                        "type": "integer"
+                      },
+                      "lastUserMessageAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "lastAssistantMessageAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "lastRagQueryAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "lastFeedbackAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "lastSafetyBlockAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "lastModelCallAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminFile": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "fileName",
+          "fileSize",
+          "fileType",
+          "checksum",
+          "ingestMode",
+          "status",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "userId": {
+            "type": "integer"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "fileSize": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "fileType": {
+            "type": "string",
+            "enum": [
+              "pdf",
+              "word",
+              "excel",
+              "txt",
+              "image",
+              "audio"
+            ]
+          },
+          "checksum": {
+            "type": "string"
+          },
+          "ingestMode": {
+            "type": "string",
+            "enum": [
+              "temporary",
+              "permanent"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "uploaded",
+              "processing",
+              "ready",
+              "failed",
+              "deleted"
+            ]
+          },
+          "chunkCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminFileListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "items",
+                  "total",
+                  "page",
+                  "pageSize",
+                  "totalPages"
+                ],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AdminFile"
+                    }
+                  },
+                  "total": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "page": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "pageSize": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "totalPages": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminFileIngestTask": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "fileId",
+          "taskType",
+          "status",
+          "progress",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "userId": {
+            "type": "integer"
+          },
+          "fileId": {
+            "type": "integer"
+          },
+          "taskType": {
+            "type": "string",
+            "enum": [
+              "file",
+              "image",
+              "audio"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "parsing",
+              "cleaning",
+              "chunking",
+              "embedding",
+              "upserting",
+              "processing",
+              "completed",
+              "failed"
+            ]
+          },
+          "progress": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminFileDetailResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "ingestTasks",
+                  "summary"
+                ],
+                "properties": {
+                  "file": {
+                    "$ref": "#/components/schemas/AdminFile"
+                  },
+                  "ingestTasks": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AdminFileIngestTask"
+                    }
+                  },
+                  "summary": {
+                    "type": "object",
+                    "required": [
+                      "taskCount",
+                      "completedTaskCount",
+                      "failedTaskCount",
+                      "processingTaskCount",
+                      "chunkCount",
+                      "ingestTasksByStatus"
+                    ],
+                    "properties": {
+                      "taskCount": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "completedTaskCount": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "failedTaskCount": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "processingTaskCount": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "chunkCount": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "ingestTasksByStatus": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "latestTaskStatus": {
+                        "type": "string",
+                        "enum": [
+                          "pending",
+                          "parsing",
+                          "cleaning",
+                          "chunking",
+                          "embedding",
+                          "upserting",
+                          "processing",
+                          "completed",
+                          "failed"
+                        ]
+                      },
+                      "latestTaskProgress": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      "lastTaskAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "lastCompletedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "lastFailedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminIngestTaskDetailResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "task",
+                  "relatedTasks",
+                  "summary"
+                ],
+                "properties": {
+                  "task": {
+                    "$ref": "#/components/schemas/AdminFileIngestTask"
+                  },
+                  "file": {
+                    "$ref": "#/components/schemas/AdminFile"
+                  },
+                  "relatedTasks": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AdminFileIngestTask"
+                    }
+                  },
+                  "summary": {
+                    "type": "object",
+                    "required": [
+                      "taskCount",
+                      "completedTaskCount",
+                      "failedTaskCount",
+                      "processingTaskCount",
+                      "chunkCount",
+                      "ingestTasksByStatus"
+                    ],
+                    "properties": {
+                      "taskCount": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "completedTaskCount": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "failedTaskCount": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "processingTaskCount": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "chunkCount": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "ingestTasksByStatus": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "latestTaskStatus": {
+                        "type": "string",
+                        "enum": [
+                          "pending",
+                          "parsing",
+                          "cleaning",
+                          "chunking",
+                          "embedding",
+                          "upserting",
+                          "processing",
+                          "completed",
+                          "failed"
+                        ]
+                      },
+                      "latestTaskProgress": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      "lastTaskAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "lastCompletedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "lastFailedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "RagQueryLogDetailResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "log",
+                  "feedback"
+                ],
+                "properties": {
+                  "log": {
+                    "$ref": "#/components/schemas/RagQueryLog"
+                  },
+                  "message": {
+                    "$ref": "#/components/schemas/AdminMessage"
+                  },
+                  "conversation": {
+                    "$ref": "#/components/schemas/AdminConversation"
+                  },
+                  "feedback": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AdminFeedback"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ModelCallLogDetailResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "log",
+                  "messages",
+                  "ragLogs",
+                  "feedback"
+                ],
+                "properties": {
+                  "log": {
+                    "$ref": "#/components/schemas/ModelCallLog"
+                  },
+                  "conversation": {
+                    "$ref": "#/components/schemas/AdminConversation"
+                  },
+                  "messages": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AdminMessage"
+                    }
+                  },
+                  "ragLogs": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/RagQueryLog"
+                    }
+                  },
+                  "feedback": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AdminFeedback"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminUser": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "username": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "admin"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminUserActivityMetrics": {
+        "type": "object",
+        "required": [
+          "conversationCount",
+          "messageCount",
+          "fileCount",
+          "readyFileCount",
+          "feedbackCount",
+          "downFeedbackCount",
+          "auditLogCount",
+          "safetyBlockCount",
+          "ragQueryCount",
+          "modelCallCount"
+        ],
+        "properties": {
+          "conversationCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "messageCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "fileCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "readyFileCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "feedbackCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "downFeedbackCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "auditLogCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "safetyBlockCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "ragQueryCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "modelCallCount": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "AdminUserActivitySummaryResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "user",
+                  "metrics",
+                  "recentConversations",
+                  "recentFiles",
+                  "recentFeedback",
+                  "recentAuditLogs"
+                ],
+                "properties": {
+                  "user": {
+                    "$ref": "#/components/schemas/AdminUser"
+                  },
+                  "metrics": {
+                    "$ref": "#/components/schemas/AdminUserActivityMetrics"
+                  },
+                  "recentConversations": {
+                    "type": "array",
+                    "maxItems": 5,
+                    "items": {
+                      "$ref": "#/components/schemas/AdminConversation"
+                    }
+                  },
+                  "recentFiles": {
+                    "type": "array",
+                    "maxItems": 5,
+                    "items": {
+                      "$ref": "#/components/schemas/AdminFile"
+                    }
+                  },
+                  "recentFeedback": {
+                    "type": "array",
+                    "maxItems": 5,
+                    "items": {
+                      "$ref": "#/components/schemas/AdminFeedback"
+                    }
+                  },
+                  "recentAuditLogs": {
+                    "type": "array",
+                    "maxItems": 5,
+                    "items": {
+                      "$ref": "#/components/schemas/AuditLog"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminUserSecurityEventMetrics": {
+        "type": "object",
+        "required": [
+          "totalAuditCount",
+          "successCount",
+          "failedCount",
+          "blockedCount",
+          "highRiskCount",
+          "authFailureCount",
+          "permissionDeniedCount",
+          "safetyBlockCount"
+        ],
+        "properties": {
+          "totalAuditCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "successCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failedCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "blockedCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "highRiskCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "authFailureCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "permissionDeniedCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "safetyBlockCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lastEventAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminUserSecurityEventsResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "user",
+                  "days",
+                  "metrics",
+                  "auditByRiskLevel",
+                  "auditByStatus",
+                  "events"
+                ],
+                "properties": {
+                  "user": {
+                    "$ref": "#/components/schemas/AdminUser"
+                  },
+                  "days": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 365
+                  },
+                  "metrics": {
+                    "$ref": "#/components/schemas/AdminUserSecurityEventMetrics"
+                  },
+                  "auditByRiskLevel": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "auditByStatus": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "events": {
+                    "type": "object",
+                    "required": [
+                      "items",
+                      "total",
+                      "page",
+                      "pageSize",
+                      "totalPages"
+                    ],
+                    "properties": {
+                      "items": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/AuditLog"
+                        }
+                      },
+                      "total": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "page": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "pageSize": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100
+                      },
+                      "totalPages": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminUserListItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AdminUser"
+          },
+          {
+            "type": "object",
+            "required": [
+              "conversationCount",
+              "messageCount",
+              "fileCount",
+              "feedbackCount"
+            ],
+            "properties": {
+              "conversationCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "messageCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "fileCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "feedbackCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "lastActiveAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        ]
+      },
+      "AdminUserListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "items",
+                  "total",
+                  "page",
+                  "pageSize",
+                  "totalPages"
+                ],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/AdminUserListItem"
+                    }
+                  },
+                  "total": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "page": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "pageSize": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "totalPages": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminUserDetailResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "user"
+                ],
+                "properties": {
+                  "user": {
+                    "$ref": "#/components/schemas/AdminUser"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminUserStatusUpdateRequest": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled"
+            ]
+          }
+        }
+      },
+      "AdminUserStatusUpdateResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "user"
+                ],
+                "properties": {
+                  "user": {
+                    "$ref": "#/components/schemas/AdminUser"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "DashboardTrendPoint": {
+        "type": "object",
+        "required": [
+          "date",
+          "chatCount",
+          "modelCallCount",
+          "avgModelLatencyMs",
+          "ragQueryCount",
+          "fallbackCount",
+          "fallbackRate",
+          "safetyBlockCount",
+          "feedbackCount"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "chatCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "modelCallCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "avgModelLatencyMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "ragQueryCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "fallbackCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "fallbackRate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "safetyBlockCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "feedbackCount": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "DashboardTrendsResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "required": [
+                  "days",
+                  "points"
+                ],
+                "properties": {
+                  "days": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 90
+                  },
+                  "points": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/DashboardTrendPoint"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
