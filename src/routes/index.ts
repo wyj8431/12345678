@@ -1,6 +1,7 @@
 import Router from "@koa/router";
 import { mockAuthMiddleware } from "../middlewares/mock-auth.middleware.js";
 import { healthService } from "../services/health.service.js";
+import { landingService } from "../services/landing.service.js";
 import { adminRouter } from "./admin.routes.js";
 import { authRouter } from "./auth.routes.js";
 import { chatRouter } from "./chat.routes.js";
@@ -10,6 +11,11 @@ import { fileRouter } from "./file.routes.js";
 import { ingestRouter } from "./ingest.routes.js";
 
 export const router = new Router();
+
+router.get("/", (ctx) => {
+  ctx.set("Content-Type", "text/html; charset=utf-8");
+  ctx.body = landingService.getNationalDayCountdownHtml();
+});
 
 router.get("/health", (ctx) => {
   ctx.body = { success: true, data: { status: "ok" } };
